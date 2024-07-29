@@ -351,12 +351,12 @@ class Terraform:
                 return None, None, None
 
             out = []
-            for line in iter(p.stdout.readline, b""):
+            for line in iter(p.stderr.readline, b""):
                 line_decoded = line.decode()
                 sys.stdout.write(line_decoded)
                 temp_log_file.write(f"[SG_ERROR] {line_decoded}".encode())
                 out.append(line_decoded)
-            p.stdout.close()
+            p.stderr.close()
             p.wait()
             ret_code = p.returncode
 
