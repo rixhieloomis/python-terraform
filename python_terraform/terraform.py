@@ -369,8 +369,12 @@ class Terraform:
 
         self.temp_var_files.clean_up()
 
-        out = "".join(out)
-        err = None if capture_output != True else out
+        if capture_output is True:
+            out = out.decode()
+            err = err.decode()
+        else:
+            out = None
+            err = None
 
         if ret_code and raise_on_error:
             raise TerraformCommandError(ret_code, " ".join(cmds), out=out, err=err)
