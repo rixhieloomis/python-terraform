@@ -337,23 +337,38 @@ class Terraform:
         if self.is_env_vars_included:
             environ_vars = os.environ.copy()
 
-        p = subprocess.Popen(
-            cmds, stdout=stdout, stderr=stderr, cwd=working_folder, env=environ_vars
-        )
+        with tempfile.NamedTemporaryFile(delete=False) as temp_log_file:
+            temp_log_path = temp_log_file.name
+            p = subprocess.Popen(
+                cmds,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                cwd=working_folder,
+                env=environ_vars,
+            )
 
-        if not synchronous:
-            return None, None, None
+            if not synchronous:
+                return None, None, None
 
-        out, err = p.communicate()
-        ret_code = p.returncode
-        logger.info("output: %s", out)
+            out = []
+            for line in iter(p.stderr.readline, b""):
+                line_decoded = line.decode()
+                sys.stdout.write(line_decoded)
+                temp_log_file.write(f"[SG_ERROR] {line_decoded}".encode())
+                out.append(line_decoded)
+            p.stderr.close()
+            p.wait()
+            ret_code = p.returncode
 
         if ret_code == 0:
             self.read_state_file()
         else:
-            logger.warning("error: %s", err)
+            logger.warning("Command returned with error code: %s", ret_code)
+            with open(temp_log_path, "r") as log_file:
+                print(log_file.read())
 
         self.temp_var_files.clean_up()
+
         if capture_output is True:
             out = out.decode()
             err = err.decode()
@@ -458,7 +473,7 @@ class Terraform:
 
     def list_workspace(self) -> List[str]:
         """List of workspaces
-        
+
         :return: workspaces
         :example:
             >>> tf = Terraform()
@@ -469,9 +484,9 @@ class Terraform:
             filter(
                 lambda workspace: len(workspace) > 0,
                 map(
-                    lambda workspace: workspace.strip('*').strip(),
-                    (self.cmd("workspace", "list")[1] or '').split()
-                )
+                    lambda workspace: workspace.strip("*").strip(),
+                    (self.cmd("workspace", "list")[1] or "").split(),
+                ),
             )
         )
 
